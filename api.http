@@ -1,0 +1,92 @@
+@host = http://localhost:3000
+
+### ========== LOGIN CUSTOMER ==========
+# @name loginCustomer
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "user1@mail.tech",
+  "password": "123456"
+}
+
+### ========== LOGIN ADMIN ==========
+# @name loginAdmin
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@mail.tech",
+  "password": "123456"
+}
+
+### ========== ADDRESSES: CREATE (customer) ==========
+# (có thể bỏ qua nếu đã có địa chỉ default)
+# @name createAddress
+POST {{host}}/api/addresses
+Authorization: Bearer {{loginCustomer.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Nguyen Van A",
+  "phone": "0901234567",
+  "city": "TPHCM",
+  "district": "Quan 1",
+  "ward": "Phuong 5",
+  "street": "123 Tran Hung Dao",
+  "isDefault": true
+}
+
+### ========== ADDRESSES: LIST MY (customer) ==========
+# @name listMyAddresses
+GET {{host}}/api/addresses/my
+Authorization: Bearer {{loginCustomer.response.body.$.accessToken}}
+
+### CHECKOUT
+# @name checkout
+POST {{host}}/api/orders/checkout
+Authorization: Bearer {{loginCustomer.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "paymentMethod": "COD",
+  "note": "Đơn test thanh toán",
+  "items": [
+    { "productId": 1, "quantity": 1 },
+    { "productId": 2, "quantity": 2 }
+  ]
+}
+
+### LẤY ID TỪ RESPONSE CHECKOUT  ⬇️  (dòng riêng)
+@orderId = {{checkout.response.body.$['order']['OrderID']}}
+
+### ========== (FALLBACK) LẤY ĐƠN MỚI NHẤT NẾU @orderId CHƯA CÓ ==========
+# Chạy block này NẾU request trên không set được @orderId
+# @name myLatestOrder
+GET {{host}}/api/orders/my?page=1&pageSize=1
+Authorization: Bearer {{loginCustomer.response.body.$.accessToken}}
+
+@orderId = {{myLatestOrder.response.body.$['data'][0]['OrderID']}}
+
+### ========== KIỂM TRA orderId ==========
+# Nên chạy nhanh request này để chắc chắn id hợp lệ
+GET {{host}}/api/orders/{{orderId}}
+Authorization: Bearer {{loginAdmin.response.body.$.accessToken}}
+
+### ========== PAYMENTS: VIEW BY ORDER ==========
+# @name getPayment
+GET {{host}}/api/payments/order/{{orderId}}
+Authorization: Bearer {{loginCustomer.response.body.$.accessToken}}
+
+### ========== PAYMENTS: MARK PAID (admin) ==========
+POST {{host}}/api/payments/mark-paid/{{orderId}}
+Authorization: Bearer {{loginAdmin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "method": "COD"
+}
+
+### ========== ORDERS: CHECK STATUS AFTER MARK-PAID ==========
+GET {{host}}/api/orders/{{orderId}}
+Authorization: Bearer {{loginAdmin.response.body.$.accessToken}}
